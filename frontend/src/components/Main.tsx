@@ -5,7 +5,6 @@ const Main = () => {
         <h1 className="text-3xl font-bold">Create a Memory</h1>
         <div className="flex flex-row gap-24">
           <div className="w-[40%] flex flex-col gap-5 mt-10">
-
             <div className="flex-col">
               <h1 className="font-bold">Description</h1>
               <textarea
@@ -13,7 +12,7 @@ const Main = () => {
                 placeholder="Describe Your Memory in Detail."
               />
             </div>
-                        <div className="flex-col">
+            <div className="flex-col">
               <h1 className="font-bold">People Involved(optional)</h1>
               <input
                 type="text"
