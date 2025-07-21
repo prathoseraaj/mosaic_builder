@@ -13,26 +13,26 @@ import speech_recognition as sr
 
 def speech_to_text(audio_file=None):
     
+    if audio_file is None:
+        print("No audio file path provided.")
+        return ""
+        
     r = sr.Recognizer()
-
-    with sr.Microphone() as source:
-        print("speck Now: ")
-        audio = r.listen(source)
-    
     try:
-        text = r.recognize_google(audio)
-        print("recognized text: ",text)
-        return text
-    
+        with sr.AudioFile(audio_file) as source:
+            audio = r.record(source)
+            text = r.recognize_google(audio)
+            print("recognized text:", text)
+            return text
     except Exception as e:
-        print("Error",e)
+        print("Error:", e)
         return ""
 
 
 
 
 
-speech_text = speech_to_text()
+speech_text = speech_to_text("audio.wav")
 
 if speech_text.strip():
     memories.append(speech_text.strip())
