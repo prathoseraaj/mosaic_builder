@@ -1,3 +1,4 @@
+import axios from "axios";
 import { useState } from "react";
 
 const Main = () => {
@@ -6,20 +7,32 @@ const Main = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
-
-  const handleSumbit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+  const handleSumbit = async (
+    e: React.FormEvent<HTMLFormElement>
+  ): Promise<void> => {
     e.preventDefault();
     setLoading(true);
     setResult(null);
     setError(null);
-  }
 
-  const formData =new FormData();
-  formData.append("dscription",description);
-  if (audioFile) formData.append("audioFile", audioFile);
-  if (imageFile) formData.append("imageFile",imageFile);
+    const formData = new FormData();
+    formData.append("description", description);
+    if (audioFile) formData.append("audioFile", audioFile);
+    if (imageFile) formData.append("imageFile", imageFile);
+
+    try {
+      const response = await axios.post("https://", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setResult(response.data);
+    } catch (error: any) {
+      setError("Failed to process memory. " + (error?.message || ""));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="w-full flex justify-center items-center mt-10">
