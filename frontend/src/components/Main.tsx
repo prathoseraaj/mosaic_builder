@@ -29,9 +29,13 @@ const Main = () => {
     if (imageFile) formData.append("imageFile", imageFile);
 
     try {
-      const response = await axios.post("https://", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const response = await axios.post(
+        "http://localhost:8000/api/memory",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
       setResult(response.data);
     } catch (error: any) {
       setError("Failed to process memory. " + (error?.message || ""));
