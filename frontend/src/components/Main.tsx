@@ -145,30 +145,38 @@ const Main = () => {
           </form>
         </div>
       ) : (
-        <div className="w-[75%]">
+        <div className="w-[75%] h-[60vh]">
           <h2 className="text-2xl font-bold">
             {result.title || "Your Memory Mosaic"}
           </h2>
-          <p className="mt-3 w-[70%] whitespace-pre-line">{result.story}</p>
           {result.generated_image_url && (
-            <img
-              src={result.generated_image_url}
-              alt="Memory Artwork"
-              className="mt-6 rounded max-w-xl"
-            />
+            <div className="flex flex-row gap-10 items-start mt-6">
+              <div className="w-[350px] flex-shrink-0">
+                <img
+                  src={`http://localhost:8000${result.generated_image_url}`}
+                  alt="Memory Artwork"
+                  className="rounded w-full object-cover"
+                />
+              </div>
+              <div className="flex-1 whitespace-pre-line mt-2 text-[1.06rem] leading-relaxed">
+                {result.story}
+              </div>
+            </div>
           )}
-          <button
-            className="mt-10 border px-2 py-1 rounded bg-black text-white"
-            onClick={() => {
-              setResult(null);
-              setDescription("");
-              setAudioFile(null);
-              setImageFile(null);
-              setError(null);
-            }}
-          >
-            Another Memory
-          </button>
+          <div className="flex justify-center ">
+            <button
+              className="mt-10 border px-2 py-1 rounded bg-black text-white mb-10"
+              onClick={() => {
+                setResult(null);
+                setDescription("");
+                setAudioFile(null);
+                setImageFile(null);
+                setError(null);
+              }}
+            >
+              Another Memory
+            </button>
+          </div>
         </div>
       )}
     </div>
