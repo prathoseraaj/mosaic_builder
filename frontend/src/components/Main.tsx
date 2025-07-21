@@ -46,11 +46,19 @@ const Main = () => {
 
   return (
     <div className="w-full flex justify-center items-center mt-10">
+      {loading && (
+        <div className="fixed top-0 left-0 z-50 w-screen h-screen bg-white/90 flex flex-col justify-center items-center">
+          <svg className="animate-spin h-12 w-12 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+          </svg>
+          <span className="text-xl font-bold text-blue-500">Processing your memory...</span>
+        </div>
+      )}
       {!result ? (
         <div className="w-[75%]">
           <h1 className="text-3xl font-bold">Create a Memory</h1>
           <form onSubmit={handleSumbit}>
-            {loading && <div className="mt-4 text-blue-500">Processing...</div>}
             {error && <div className="mt-4 text-red-600">{error}</div>}
             <div className="flex flex-row gap-24">
               <div className="w-[40%] flex flex-col gap-5 mt-10">
