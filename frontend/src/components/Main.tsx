@@ -1,4 +1,13 @@
+import { useState } from "react";
+
 const Main = () => {
+
+  const [description, setDescription] = useState("");
+  const [audioFile, setAudioFile] = useState(null);
+  const [ imageFile, setImageFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
   return (
     <div className="w-full flex justify-center items-center mt-10">
       <div className="w-[75%]">
