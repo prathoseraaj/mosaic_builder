@@ -16,6 +16,11 @@ const Main = () => {
     setError(null);
   }
 
+  const formData =new FormData();
+  formData.append("dscription",description);
+  if (audioFile) formData.append("audioFile", audioFile);
+  if (imageFile) formData.append("imageFile",imageFile);
+
   return (
     <div className="w-full flex justify-center items-center mt-10">
       <div className="w-[75%]">
