@@ -8,7 +8,6 @@ const App = () => {
       <Navbar/>
       <hr  className="mt-2 text-gray-200 font-bold"/>
       <Main/> 
-      {/* <Story/> */}
     </div>
   )
 }
