@@ -1,13 +1,13 @@
 import { useState } from "react";
 
 const Main = () => {
-
   const [description, setDescription] = useState("");
-  const [audioFile, setAudioFile] = useState(null);
-  const [ imageFile, setImageFile] = useState(null);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+
   return (
     <div className="w-full flex justify-center items-center mt-10">
       <div className="w-[75%]">
@@ -19,6 +19,8 @@ const Main = () => {
               <textarea
                 className="w-full bg-gray-100 h-[100px] p-2 mt-1 rounded resize-none"
                 placeholder="Describe Your Memory in Detail."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
               />
             </div>
             <div className="flex-col">
@@ -48,8 +50,12 @@ const Main = () => {
                   id="audioInput"
                   accept="audio/*"
                   className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setAudioFile(e.target.files[0]);
+                    }
+                  }}
                 />
-
                 <label
                   htmlFor="audioInput"
                   className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-[#f4f2f1] text-[#171412] text-sm font-bold leading-normal tracking-[0.015em]"
@@ -72,7 +78,15 @@ const Main = () => {
                 Or click to browse your files
               </p>
             </div>
-            <input type="file" id="fileInput" className="hidden" />
+            <input
+              type="file"
+              id="fileInput"
+              className="hidden"
+              accept="image/*"
+              onChange={(e) => {if(e.target.files && e.target.files[0]){
+                setImageFile(e.target.files[0])
+              }}}
+            />
             <label
               htmlFor="fileInput"
               className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-[#f4f2f1] text-[#171412] text-sm font-bold leading-normal tracking-[0.015em]"
