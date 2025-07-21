@@ -1,244 +1,193 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
+import os
 import speech_recognition as sr
 from PIL import Image
+from io import BytesIO
 import google.generativeai as genai
-import os
 from dotenv import load_dotenv
 import spacy
 from transformers import pipeline
-import torch
 import requests
-from io import BytesIO
-from typing import List, Dict, Any
-import logging
+import uuid
 
-# Initialize FastAPI app
+# --- Environment and Model Setup ---
+
+load_dotenv()
+gemini_api_key = os.getenv("gemini_api_key")
+hugging_token = os.getenv("hugging_face_token")
+
+if not gemini_api_key: raise Exception("Missing Gemini API key")
+if not hugging_token: raise Exception("Missing HuggingFace key")
+
+genai.configure(api_key=gemini_api_key)
+nlp = spacy.load("en_core_web_sm")
+sent_analyzer = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+
 app = FastAPI()
 
-# Enable CORS for React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Adjust to match your React app's URL
+    allow_origins=["http://localhost:5173"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load environment variables
-load_dotenv()
-gemini_api_key = os.getenv("gemini_api_key")
-hugging_token = os.getenv("hugging_face_token")
+STATIC_DIR = "static"
+os.makedirs(STATIC_DIR, exist_ok=True)
 
-# Configure Gemini AI
-genai.configure(api_key=gemini_api_key)
+# --- Helper Functions ---
 
-# Initialize NLP and sentiment analysis models
-nlp = spacy.load("en_core_web_sm")
-sentimental_analyzer = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+def process_audio(audio_file: UploadFile):
+    # Save temp audio
+    temp_path = os.path.join(STATIC_DIR, f"audio_{uuid.uuid4()}.wav")
+    with open(temp_path, "wb") as f:
+        f.write(audio_file.file.read())
+    # Speech-to-text
+    r = sr.Recognizer()
+    with sr.AudioFile(temp_path) as source:
+        audio = r.record(source)
+        text = r.recognize_google(audio)
+    os.remove(temp_path)
+    return text
 
-# In-memory storage for memories
-memories = []
+def process_image(image_file: UploadFile):
+    image = Image.open(BytesIO(image_file.file.read()))
+    # Use Gemini to caption
+    model = genai.GenerativeModel("gemini-2.5-flash")
+    prompt = (
+        "Analyze the image and generate a detailed, vivid description that captures visual elements, mood, atmosphere, "
+        "and possible stories or emotions present."
+    )
+    response = model.generate_content([prompt, image])
+    return response.text
 
-# Pydantic model for text input
-class TextInput(BaseModel):
-    text: str
+def nlp_extraction(memories):
+    structured = []
+    for mem in memories:
+        doc = nlp(mem)
+        events = [sent.text for sent in doc.sents]
+        entities = [ent.text for ent in doc.ents]
+        keywords = [token.lemma_ for token in doc if token.is_alpha and not token.is_stop]
+        structured.append({"original": mem, "events": events, "entities": entities, "keywords": keywords})
+    return structured
 
-# Pydantic model for structured memory output
-class StructuredMemory(BaseModel):
-    original: str
-    events: List[str]
-    entities: List[str]
-    keywords: List[str]
-    sentiment: str
-    sentiment_score: float
-
-# Endpoint to handle text input
-@app.post("/api/text-input")
-async def add_text_input(text_input: TextInput):
-    try:
-        if text_input.text.strip():
-            memories.append(text_input.text.strip())
-            return {"message": "Text added to memories", "memory": text_input.text}
-        else:
-            raise HTTPException(status_code=400, detail="Text input is empty")
-    except Exception as e:
-        logging.error(f"Error in text input: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-# Endpoint for speech-to-text
-@app.post("/api/speech-to-text")
-async def speech_to_text(file: UploadFile = File(...)):
-    try:
-        # Save uploaded audio file temporarily
-        audio_path = f"temp_{file.filename}"
-        with open(audio_path, "wb") as f:
-            f.write(await file.read())
-
-        r = sr.Recognizer()
-        with sr.AudioFile(audio_path) as source:
-            audio = r.record(source)
-            text = r.recognize_google(audio)
-        
-        # Clean up temporary file
-        os.remove(audio_path)
-
-        if text.strip():
-            memories.append(text.strip())
-            return {"message": "Speech converted to text", "text": text}
-        else:
-            raise HTTPException(status_code=400, detail="No text recognized from audio")
-    except Exception as e:
-        logging.error(f"Error in speech-to-text: {str(e)}")
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-# Endpoint for image analysis
-@app.post("/api/image-analysis")
-async def image_analysis_endpoint(file: UploadFile = File(...)):
-    try:
-        # Open image from uploaded file
-        image = Image.open(BytesIO(await file.read()))
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        prompt = (
-            "Analyze the image and generate a detailed, vivid description that captures the visual elements, mood, atmosphere, "
-            "and possible stories or emotions present. The description should be rich enough for someone to imagine the scene clearly, "
-            "including context, cultural or social significance, and details that might enrich a memory mosaic."
+def sentiment_analysis(structured):
+    out = []
+    for item in structured:
+        result = sent_analyzer(
+            item["original"],
+            candidate_labels=["positive", "neutral", "negative"]
         )
-        response = model.generate_content([prompt, image])
+        item["sentiment"] = result["labels"][0]
+        item["sentiment_score"] = float(result["scores"][0])
+        out.append(item)
+    return out
 
-        if response.text.strip():
-            memories.append(response.text.strip())
-            return {"message": "Image analyzed", "description": response.text}
-        else:
-            raise HTTPException(status_code=400, detail="No description generated from image")
-    except Exception as e:
-        logging.error(f"Error in image analysis: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+def prepare_llm_prompt(structured):
+    prompt = "Here are some personal memories:\n\n"
+    for idx, mem in enumerate(structured, 1):
+        prompt += f"{idx}. {mem['original']}\n"
+        prompt += f"   Events: {mem['events']}\n"
+        prompt += f"   Entities: {mem['entities']}\n"
+        prompt += f"   Keywords: {mem['keywords']}\n"
+        prompt += f"   Sentiment: {mem.get('sentiment','')} ({mem.get('sentiment_score',0):.2f})\n\n"
+    return prompt
 
-# Endpoint for NLP extraction
-@app.get("/api/nlp-extraction")
-async def nlp_extraction():
+def run_llm_story(prompt):
+    model = genai.GenerativeModel("gemini-2.5-flash")
+    full_prompt = f"{prompt}\n\nPlease create a mosaic story or synthesis that weaves together these memories."
+    response = model.generate_content(full_prompt)
+    return response.text
+
+def generate_title(story):
+    model = genai.GenerativeModel("gemini-2.5-flash")
+    prompt = (
+        f"{story}\n\n"
+        "Based on the story above, generate a concise, creative title for this memory mosaic. "
+        "Respond with only the title, no extra text."
+    )
+    response = model.generate_content(prompt)
+    return response.text.strip()
+
+def generate_image_prompt(story):
+    model = genai.GenerativeModel("gemini-2.5-flash")
+    prompt = (
+        f"{story}\n\n"
+        "Based on the story above, create ONE detailed, vivid, and visually clear image prompt for AI image generation. "
+        "Respond with only a single image prompt in one complete sentence, describing the scene to be depicted in the image. "
+        "Do not include any titles, explanations, or extra text—output only the image prompt."
+    )
+    response = model.generate_content(prompt)
+    return response.text.strip()
+
+def generate_image_from_prompt(image_prompt, img_save_path):
+    url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+    headers = {
+        "Authorization": f"Bearer {hugging_token}",
+        "Content-Type": "application/json"
+    }
+    response = requests.post(url, headers=headers, json={"inputs": image_prompt})
+    if response.ok:
+        img = Image.open(BytesIO(response.content))
+        img.save(img_save_path)
+    else:
+        raise Exception(f"Image gen error: {response.text}")
+
+# --- Main POST Endpoint ---
+
+@app.post("/api/memory")
+async def create_memory(
+    description: str = Form(...),
+    audioFile: Optional[UploadFile] = File(None),
+    imageFile: Optional[UploadFile] = File(None),
+):
+    memories = []
+    if description.strip():
+        memories.append(description.strip())
+
+    # --- Audio
+    if audioFile is not None and audioFile.filename != "":
+        try:
+            audio_text = process_audio(audioFile)
+            if audio_text.strip(): memories.append(audio_text.strip())
+        except Exception as e:
+            return {"error": f"Audio processing failed: {str(e)}"}
+
+    # --- Image
+    if imageFile is not None and imageFile.filename != "":
+        try:
+            image_text = process_image(imageFile)
+            if image_text.strip(): memories.append(image_text.strip())
+        except Exception as e:
+            return {"error": f"Image analysis failed: {str(e)}"}
+
+    # --- NLP/AI pipeline:
     try:
-        structured = []
-        for mem in memories:
-            doc = nlp(mem)
-            events = [sent.text for sent in doc.sents]
-            entities = [ent.text for ent in doc.ents]
-            keywords = [token.lemma_ for token in doc if token.is_alpha and not token.is_stop]
-            structured.append({
-                "original": mem,
-                "events": events,
-                "entities": entities,
-                "keywords": keywords
-            })
-        return {"message": "NLP extraction completed", "structured_memories": structured}
-    except Exception as e:
-        logging.error(f"Error in NLP extraction: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-# Endpoint for sentiment analysis
-@app.post("/api/sentiment-analysis")
-async def sentiment_analysis(structured_memories: List[Dict[str, Any]]):
-    try:
-        for item in structured_memories:
-            result = sentimental_analyzer(
-                item["original"],
-                candidate_labels=["positive", "neutral", "negative"]
-            )
-            item["sentiment"] = result["labels"][0]
-            item["sentiment_score"] = result["scores"][0]
-        return {"message": "Sentiment analysis completed", "sentimental_memories": structured_memories}
-    except Exception as e:
-        logging.error(f"Error in sentiment analysis: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-# Endpoint to prepare LLM prompt
-@app.post("/api/prepare-llm-prompt")
-async def prepare_llm_prompt(sentimental_memories: List[StructuredMemory]):
-    try:
-        prompt = "Here are some personal memories:\n\n"
-        for idx, mem in enumerate(sentimental_memories, 1):
-            prompt += f"{idx}. {mem.original}\n"
-            prompt += f"   Events: {mem.events}\n"
-            prompt += f"   Entities: {mem.entities}\n"
-            prompt += f"   Keywords: {mem.keywords}\n"
-            prompt += f"   Sentiment: {mem.sentiment} ({mem.sentiment_score:.2f})\n\n"
-        return {"message": "LLM prompt prepared", "prompt": prompt}
-    except Exception as e:
-        logging.error(f"Error in preparing LLM prompt: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-# Endpoint for LLM story generation
-@app.post("/api/llm-process")
-async def llm_process(prompt: str):
-    try:
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        full_prompt = f"{prompt}\n\nPlease create a mosaic story or synthesis that weaves together these memories."
-        response = model.generate_content(full_prompt)
-        return {"message": "Story generated", "story": response.text}
-    except Exception as e:
-        logging.error(f"Error in LLM processing: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-# Endpoint for title generation
-@app.post("/api/title-generation")
-async def title_generation(story: str):
-    try:
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        prompt = (
-            f"{story}\n\n"
-            "Based on the story above, generate a concise, creative title for this memory mosaic. "
-            "Respond with only the title, no extra text."
-        )
-        response = model.generate_content(prompt)
-        return {"message": "Title generated", "title": response.text}
-    except Exception as e:
-        logging.error(f"Error in title generation: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-# Endpoint for image prompt generation
-@app.post("/api/image-prompt")
-async def image_prompt(story: str):
-    try:
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        prompt = (
-            f"{story}\n\n"
-            "Based on the story above, create ONE detailed, vivid, and visually clear image prompt for AI image generation. "
-            "Respond with only a single image prompt in one complete sentence, describing the scene to be depicted in the image. "
-            "Do not include any titles, explanations, or extra text—output only the image prompt."
-        )
-        response = model.generate_content(prompt)
-        return {"message": "Image prompt generated", "image_prompt": response.text}
-    except Exception as e:
-        logging.error(f"Error in image prompt generation: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-# Endpoint for image generation
-@app.post("/api/generate-image")
-async def generate_image_endpoint(image_prompt: str):
-    try:
-        url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
-        headers = {
-            "Authorization": f"Bearer {hugging_token}",
-            "Content-Type": "application/json"
+        structured = nlp_extraction(memories)
+        sentimental = sentiment_analysis(structured)
+        llm_prompt = prepare_llm_prompt(sentimental)
+        story = run_llm_story(llm_prompt)
+        title = generate_title(story)
+        image_prompt = generate_image_prompt(story)
+        image_filename = f"memory_{uuid.uuid4().hex}.png"
+        image_save_path = os.path.join(STATIC_DIR, image_filename)
+        generate_image_from_prompt(image_prompt, image_save_path)
+        image_url = f"/static/{image_filename}"
+        return {
+            "title": title,
+            "story": story,
+            "generated_image_url": image_url
         }
-        response = requests.post(url, headers=headers, json={"inputs": image_prompt})
-        if response.ok:
-            # Save image temporarily and return base64 or URL for frontend
-            img = Image.open(BytesIO(response.content))
-            img_path = "generated_image.png"
-            img.save(img_path)
-            return {"message": "Image generated", "image_path": img_path}
-        else:
-            raise HTTPException(status_code=response.status_code, detail=response.text)
-    except Exception as e:
-        logging.error(f"Error in image generation: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
-# Endpoint to get all memories
-@app.get("/api/memories")
-async def get_memories():
-    return {"memories": memories}
+    except Exception as e:
+        return {"error": f"Pipeline failed: {str(e)}"}
+
+# --- Serve images (static files) ---
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
