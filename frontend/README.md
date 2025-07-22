@@ -1,69 +1,140 @@
-# React + TypeScript + Vite
+# Memory Mosaic Builder
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Memory Mosaic Builder is a full-stack application that allows users to create a "mosaic" of personal memories by combining textual descriptions, audio recordings, and images. The system uses modern NLP and generative AI models to analyze, synthesize, and visualize these memories into a cohesive story and artwork.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Text, Audio, and Image Input:**  
+  Users can describe memories via text, upload an audio file for speech-to-text transcription, and/or upload an image for AI-generated scene descriptions.
 
-## Expanding the ESLint configuration
+- **AI-Powered Analysis:**  
+  - **NLP Extraction:** Extracts events, entities, and keywords from memory descriptions.
+  - **Sentiment Analysis:** Classifies sentiment using zero-shot learning.
+  - **Story Synthesis:** Weaves the structured memories into a single narrative using generative AI.
+  - **Artwork Generation:** Creates a visual artwork based on the synthesized story using image generation models.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **Modern Frontend:**  
+  Built with React, TypeScript, and Vite for a fast, responsive user interface.
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- **Backend API:**  
+  FastAPI-based backend orchestrates AI processing, file handling, and serves static/generated assets.
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+## Directory Structure
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+prathoseraaj-mosaic_builder/
+├── requirements.txt
+├── app/
+│   ├── main.py             
+│   └── .gitignore
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx
+│   │   ├── main.tsx
+│   │   ├── index.css
+│   │   └── components/
+│   │       ├── Main.tsx
+│   │       └── Navbar.tsx
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig*.json
+│   └── ...other frontend files
+├── notebook/
+│   ├── memories_structuring.ipynb
+│   └── text_to_speech.ipynb
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Getting Started
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### 1. Clone the Repository
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+git clone https://github.com/prathoseraaj/mosaic_builder.git
+cd prathoseraaj-mosaic_builder
 ```
+
+### 2. Backend Setup
+
+#### a. Python Environment
+
+- Create a virtual environment and install dependencies:
+
+  ```bash
+  python -m venv venv
+  source venv/bin/activate 
+  pip install -r requirements.txt
+  ```
+
+#### b. Environment Variables
+
+- Create a `.env` file in the `app/` directory with your API keys:
+
+  ```
+  gemini_api_key=<YOUR_GEMINI_API_KEY>
+  hugging_face_token=<YOUR_HUGGINGFACE_TOKEN>
+  ```
+
+#### c. Download spaCy Model
+
+```bash
+python -m spacy download en_core_web_sm
+```
+
+#### d. Run the Backend
+
+```bash
+cd app
+uvicorn main:app --reload
+```
+
+The backend will be available at `http://localhost:8000`.
+
+### 3. Frontend Setup
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend will be available at `http://localhost:5173`.
+
+### 4. Usage
+
+- Open the frontend in your browser.
+- Enter a textual description, optionally upload an audio file and/or an image.
+- Submit to generate a mosaic story and artwork based on your memory.
+- Download or share the generated output as desired.
+
+## API Overview
+
+### POST `/api/memory`
+
+- **Request:**  
+  - `description`: Text (required)
+  - `audioFile`: File 
+  - `imageFile`: File
+
+- **Response:**  
+  ```json
+  {
+    "title": "A Day to Remember",
+    "story": "Once upon a time ...",
+    "generated_image_url": "/static/memory_xxxxx.png"
+  }
+  ```
+
+## Notebook Prototypes
+
+- `notebook/memories_structuring.ipynb`: Prototyping for memory structuring, speech-to-text, and image analysis workflows.
+
+## Tech Stack
+
+- **Frontend:** React, TypeScript, Tailwind CSS, Vite
+- **Backend:** FastAPI, spaCy, transformers, SpeechRecognition, PIL, Google Generative AI, HuggingFace API
+- **Other:** Jupyter Notebook for prototyping
+
+
+
+**Disclaimer:** This project uses third-party AI APIs. You are responsible for your API usage and associated costs.
