@@ -22,7 +22,7 @@ Memory Mosaic Builder is a full-stack application that allows users to create a 
 ## Directory Structure
 
 ```
-prathoseraaj-mosaic_builder/
+mosaic_builder/
 ├── requirements.txt
 ├── app/
 │   ├── main.py             
